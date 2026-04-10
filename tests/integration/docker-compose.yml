@@ -1,0 +1,12 @@
+services:
+  nextcloud:
+    image: nextcloud:30-apache
+    environment:
+      NEXTCLOUD_ADMIN_USER: admin
+      NEXTCLOUD_ADMIN_PASSWORD: testpassword123
+      NEXTCLOUD_TRUSTED_DOMAINS: localhost
+      SQLITE_DATABASE: testdb
+    ports:
+      - "${NEXTCLOUD_PORT:-8080}:80"
+    # No named volumes — container filesystem is ephemeral.
+    # Every `docker compose up` starts from a clean Nextcloud install.
