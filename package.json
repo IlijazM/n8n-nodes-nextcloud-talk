@@ -1,0 +1,61 @@
+{
+    "name": "n8n-nodes-nextcloud-talk",
+    "version": "0.0.0",
+    "description": "n8n community node for Nextcloud Talk.",
+    "license": "MIT",
+    "homepage": "",
+    "keywords": [
+        "n8n-community-node-package",
+        "nextcloud",
+        "nextcloud-talk"
+    ],
+    "author": {
+        "name": "IlijazM",
+        "email": "mehmedovic.ilijaz@gmail.com"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/IlijazM/n8n-nodes-nextcloud-talk.git"
+    },
+    "scripts": {
+        "build": "n8n-node build",
+        "build:watch": "tsc --watch",
+        "dev": "n8n-node dev",
+        "lint": "n8n-node lint",
+        "lint:fix": "n8n-node lint --fix",
+        "release": "n8n-node release",
+        "prepublishOnly": "n8n-node prerelease",
+        "test": "vitest run --config vitest.integration.config.ts"
+    },
+    "files": [
+        "dist"
+    ],
+    "n8n": {
+        "n8nNodesApiVersion": 1,
+        "strict": false,
+        "credentials": [
+            "dist/credentials/NextcloudApi.credentials.js"
+        ],
+        "nodes": [
+            "dist/nodes/NextcloudTalk/NextcloudTalk.node.js",
+            "dist/nodes/NextcloudTalk/NextcloudTalkTrigger.node.js"
+        ]
+    },
+    "devDependencies": {
+        "@n8n/node-cli": "*",
+        "axios": "^1.7.0",
+        "eslint": "9.32.0",
+        "prettier": "3.6.2",
+        "release-it": "^19.0.4",
+        "typescript": "5.9.2",
+        "vitest": "^2.0.0"
+    },
+    "peerDependencies": {
+        "n8n-workflow": "*"
+    },
+    "release-it": {
+        "npm": {
+            "publish": false
+        }
+    }
+}
