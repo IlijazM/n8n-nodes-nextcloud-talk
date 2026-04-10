@@ -81,33 +81,12 @@ describe('NextcloudTalkPollTrigger', () => {
 		expect(result![0][0].json.message).toBe('manual mode test message');
 	});
 
-	it('actorTypes filter excludes messages from non-matching actor types', async () => {
-		const globalData: Record<string, unknown> = {};
-
-		// First run: establish cursor
-		await node.poll.call(createRealPollContext(
-			{ conversationMode: 'specific', tokens: { token: [{ value: token }] }, options: { ignoreSystemMessages: true, actorTypes: ['bots'] } },
-			globalData, 'trigger',
-		));
-
-		// Send a user message
-		await sendMessage(token, 'user message for actor filter test');
-
-		// Poll filtering for bots only — the user message should be excluded
-		const result = await node.poll.call(createRealPollContext(
-			{ conversationMode: 'specific', tokens: { token: [{ value: token }] }, options: { ignoreSystemMessages: true, actorTypes: ['bots'] } },
-			globalData, 'trigger',
-		));
-
-		expect(result).toBeNull();
-	});
-
 	it('all conversations mode detects messages across all conversations', async () => {
 		const globalData: Record<string, unknown> = {};
 
 		// First run in 'all' mode: establish cursors for every room
 		await node.poll.call(createRealPollContext(
-			{ conversationMode: 'all', botId: 0, options: { ignoreSystemMessages: true } },
+			{ conversationMode: 'all', options: { ignoreSystemMessages: true } },
 			globalData, 'trigger',
 		));
 
@@ -116,7 +95,7 @@ describe('NextcloudTalkPollTrigger', () => {
 
 		// Second run: should detect the message in any conversation
 		const result = await node.poll.call(createRealPollContext(
-			{ conversationMode: 'all', botId: 0, options: { ignoreSystemMessages: true } },
+			{ conversationMode: 'all', options: { ignoreSystemMessages: true } },
 			globalData, 'trigger',
 		));
 

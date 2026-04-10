@@ -12,9 +12,6 @@ import { nextcloudApiRequest, extractOcsData, CHAT_API_PATH, ROOM_API_PATH } fro
 import type { NextcloudTalkMessage, NextcloudTalkRoom } from './types';
 import { NEXTCLOUD_TALK_CURSORS_KEY } from './types';
 
-// Key in global static data for tracking which conversations have the bot enabled.
-const NEXTCLOUD_TALK_ENABLED_TOKENS_KEY = 'nextcloudTalkEnabledTokens';
-
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function getSpecificTokens(context: IPollFunctions): string[] {
@@ -25,12 +22,9 @@ function getSpecificTokens(context: IPollFunctions): string[] {
 function applyFilters(
 	messages: NextcloudTalkMessage[],
 	ignoreSystemMessages: boolean,
-	allowedActorTypes: string[],
 ): NextcloudTalkMessage[] {
-	let result = messages;
-	if (ignoreSystemMessages) result = result.filter((m) => m.messageType !== 'system');
-	if (allowedActorTypes.length > 0) result = result.filter((m) => allowedActorTypes.includes(m.actorType));
-	return result;
+	if (!ignoreSystemMessages) return messages;
+	return messages.filter((m) => m.messageType !== 'system');
 }
 
 // ── node ──────────────────────────────────────────────────────────────────────
@@ -100,36 +94,12 @@ export class NextcloudTalkPollTrigger implements INodeType {
 				],
 			},
 			{
-				displayName: 'Bot ID',
-				name: 'botId',
-				type: 'number',
-				default: 0,
-				displayOptions: { show: { conversationMode: ['all'] } },
-				description:
-					'When set, automatically enables the webhook bot for any new conversation you are added to as moderator. The bot ID is shown in <code>occ talk:bot:list</code>. Leave at 0 to disable auto-registration.',
-			},
-			{
 				displayName: 'Options',
 				name: 'options',
 				type: 'collection',
 				placeholder: 'Add Option',
 				default: {},
 				options: [
-					{
-						displayName: 'Actor Types',
-						name: 'actorTypes',
-						type: 'multiOptions',
-						options: [
-							{ name: 'Bots', value: 'bots', description: 'Bots, commands, and the changelog conversation' },
-							{ name: 'Bridged', value: 'bridged', description: 'Users bridged in by the Matterbridge integration' },
-							{ name: 'Deleted Users', value: 'deleted_users', description: 'Former logged-in users that got deleted' },
-							{ name: 'Federated Users', value: 'federated_users' },
-							{ name: 'Guests', value: 'guests', description: 'Guest users (attendee type guests and emails)' },
-							{ name: 'Users', value: 'users' },
-						],
-						default: ['users', 'guests'],
-						description: 'Only trigger for messages from these actor types. Leave as default to exclude bots and avoid loops.',
-					},
 					{
 						displayName: 'Ignore System Messages',
 						name: 'ignoreSystemMessages',
@@ -146,9 +116,8 @@ export class NextcloudTalkPollTrigger implements INodeType {
 
 	async poll(this: IPollFunctions): Promise<INodeExecutionData[][] | null> {
 		const conversationMode = this.getNodeParameter('conversationMode') as string;
-		const options = this.getNodeParameter('options') as { ignoreSystemMessages?: boolean; actorTypes?: string[] };
+		const options = this.getNodeParameter('options') as { ignoreSystemMessages?: boolean };
 		const ignoreSystemMessages = options.ignoreSystemMessages !== false;
-		const allowedActorTypes = options.actorTypes ?? [];
 		const isManualMode = this.getMode() === 'manual';
 
 		// Shared state across both trigger nodes in this workflow.
@@ -165,42 +134,6 @@ export class NextcloudTalkPollTrigger implements INodeType {
 			const response = await nextcloudApiRequest.call(this, 'GET', ROOM_API_PATH, '/room', {}, {});
 			const rooms = extractOcsData(response) as NextcloudTalkRoom[];
 			tokensToPoll = Array.isArray(rooms) ? rooms.map((r) => r.token).filter(Boolean) : [];
-
-			// Auto-register the webhook bot for any new conversation where the user is moderator.
-			const botId = this.getNodeParameter('botId') as number;
-			if (botId > 0 && !isManualMode) {
-				const enabledTokens = (globalData[NEXTCLOUD_TALK_ENABLED_TOKENS_KEY] ?? []) as string[];
-
-				for (const token of tokensToPoll) {
-					if (!enabledTokens.includes(token)) {
-						try {
-							await nextcloudApiRequest.call(
-								this, 'POST', CHAT_API_PATH, `/bot/${token}/${botId}`, {},
-							);
-							enabledTokens.push(token);
-						} catch {
-							// Not a moderator yet — will retry next poll cycle.
-						}
-					}
-				}
-
-				const gone = enabledTokens.filter((t) => !tokensToPoll.includes(t));
-				for (const token of gone) {
-					try {
-						await nextcloudApiRequest.call(
-							this, 'DELETE', CHAT_API_PATH, `/bot/${token}/${botId}`, {},
-						);
-					} catch {
-						// Already gone — ignore.
-					}
-					delete cursors[token];
-				}
-
-				globalData[NEXTCLOUD_TALK_ENABLED_TOKENS_KEY] = enabledTokens.filter((t) =>
-					tokensToPoll.includes(t),
-				);
-				globalData[NEXTCLOUD_TALK_CURSORS_KEY] = cursors;
-			}
 		} else {
 			tokensToPoll = getSpecificTokens(this);
 		}
@@ -227,7 +160,7 @@ export class NextcloudTalkPollTrigger implements INodeType {
 			if (isManualMode) {
 				// In test mode static data is not persisted, so cursor is useless.
 				// Just show the most recent message as a preview — same UX as other n8n triggers.
-				const filtered = applyFilters(messages, ignoreSystemMessages, allowedActorTypes);
+				const filtered = applyFilters(messages, ignoreSystemMessages);
 				for (const message of filtered) {
 					allMessages.push({ json: { ...(message as unknown as IDataObject), _source: 'poll' } });
 				}
@@ -244,7 +177,7 @@ export class NextcloudTalkPollTrigger implements INodeType {
 				if (isFirstRun) continue;
 
 				const newMessages = messages.filter((m) => m.id > cursor);
-				const filtered = applyFilters(newMessages, ignoreSystemMessages, allowedActorTypes);
+				const filtered = applyFilters(newMessages, ignoreSystemMessages);
 
 				for (const message of filtered) {
 					allMessages.push({ json: { ...(message as unknown as IDataObject), _source: 'poll' } });

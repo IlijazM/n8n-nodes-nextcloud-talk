@@ -17,6 +17,8 @@ import {
 import { participantOperations, participantFields } from './descriptions/participant.description';
 import { pollOperations, pollFields } from './descriptions/poll.description';
 import { reactionOperations, reactionFields } from './descriptions/reaction.description';
+import { botOperations, botFields } from './descriptions/bot.description';
+import type { NextcloudTalkBotEntry } from './types';
 
 export class NextcloudTalk implements INodeType {
 	description: INodeTypeDescription = {
@@ -49,6 +51,7 @@ export class NextcloudTalk implements INodeType {
 				type: 'options',
 				noDataExpression: true,
 				options: [
+					{ name: 'Bot', value: 'bot' },
 					{ name: 'Conversation', value: 'conversation' },
 					{ name: 'Message', value: 'message' },
 					{ name: 'Participant', value: 'participant' },
@@ -57,6 +60,8 @@ export class NextcloudTalk implements INodeType {
 				],
 				default: 'message',
 			},
+			...botOperations,
+			...botFields,
 			...conversationOperations,
 			...conversationFields,
 			...messageOperations,
@@ -79,8 +84,52 @@ export class NextcloudTalk implements INodeType {
 				const resource = this.getNodeParameter('resource', i) as string;
 				const operation = this.getNodeParameter('operation', i) as string;
 
+				// ─── Bot ───────────────────────────────────────────────────
+				if (resource === 'bot') {
+					const token = this.getNodeParameter('token', i) as string;
+
+					if (operation === 'enable') {
+						const botId = this.getNodeParameter('botId', i) as number;
+						await nextcloudApiRequest.call(
+							this,
+							'POST',
+							CHAT_API_PATH,
+							`/bot/${token}/${botId}`,
+						);
+						returnData.push({
+							json: { enabled: true, token, botId },
+							pairedItem: { item: i },
+						});
+					} else if (operation === 'disable') {
+						const botId = this.getNodeParameter('botId', i) as number;
+						await nextcloudApiRequest.call(
+							this,
+							'DELETE',
+							CHAT_API_PATH,
+							`/bot/${token}/${botId}`,
+						);
+						returnData.push({
+							json: { enabled: false, token, botId },
+							pairedItem: { item: i },
+						});
+					} else if (operation === 'list') {
+						const response = await nextcloudApiRequest.call(
+							this,
+							'GET',
+							CHAT_API_PATH,
+							`/bot/${token}`,
+						);
+						const bots = extractOcsData(response) as NextcloudTalkBotEntry[];
+						for (const bot of bots ?? []) {
+							returnData.push({
+								json: bot as unknown as IDataObject,
+								pairedItem: { item: i },
+							});
+						}
+					}
+
 				// ─── Conversation ──────────────────────────────────────────
-				if (resource === 'conversation') {
+				} else if (resource === 'conversation') {
 					if (operation === 'getMany') {
 						const response = await nextcloudApiRequest.call(
 							this,

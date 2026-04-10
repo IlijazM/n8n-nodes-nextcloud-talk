@@ -2,7 +2,6 @@ import crypto from 'crypto';
 import {
 	NodeConnectionTypes,
 	type IDataObject,
-	type IHookFunctions,
 	type INodeType,
 	type INodeTypeDescription,
 	type IPollFunctions,
@@ -10,33 +9,13 @@ import {
 	type IWebhookResponseData,
 } from 'n8n-workflow';
 
-import { nextcloudApiRequest, extractOcsData, CHAT_API_PATH, ROOM_API_PATH } from './helpers';
-import type { NextcloudTalkBotEntry } from './types';
 import { NEXTCLOUD_TALK_CURSORS_KEY } from './types';
-
-// ── node-scoped static data (bot lifecycle only) ──────────────────────────────
-
-interface WebhookNodeStaticData {
-	enabledTokens: string[];
-}
-
-function initNodeData(raw: Record<string, unknown>): WebhookNodeStaticData {
-	const data = raw as unknown as WebhookNodeStaticData;
-	if (!data.enabledTokens) data.enabledTokens = [];
-	return data;
-}
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-function getSpecificTokens(context: IHookFunctions | IPollFunctions): string[] {
+function getSpecificTokens(context: IWebhookFunctions | IPollFunctions): string[] {
 	const col = context.getNodeParameter('tokens') as { token?: Array<{ value: string }> };
 	return (col.token ?? []).map((t) => t.value).filter(Boolean);
-}
-
-async function getAllRoomTokens(context: IHookFunctions): Promise<string[]> {
-	const response = await nextcloudApiRequest.call(context, 'GET', ROOM_API_PATH, '/room', {}, {});
-	const rooms = extractOcsData(response) as Array<{ token: string }>;
-	return Array.isArray(rooms) ? rooms.map((r) => r.token).filter(Boolean) : [];
 }
 
 // ── node ──────────────────────────────────────────────────────────────────────
@@ -77,7 +56,7 @@ export class NextcloudTalkWebhookTrigger implements INodeType {
 			},
 			{
 				displayName:
-					'Register the bot once with: <code>occ talk:bot:install --feature webhook --feature response "n8n" "&lt;YOUR_SECRET&gt;" "&lt;YOUR_N8N_URL&gt;/webhook/&lt;WEBHOOK_PATH&gt;"</code>. The secret must be at least 40 characters. The Bot ID is shown in the output or via <code>occ talk:bot:list</code>. Use <code>--feature webhook</code> so Nextcloud sends events to n8n, and <code>--feature response</code> if you also want to send messages back as the bot.',
+					'Register the bot once with: <code>occ talk:bot:install --feature webhook --feature response "n8n" "&lt;YOUR_SECRET&gt;" "&lt;YOUR_N8N_URL&gt;/webhook/&lt;WEBHOOK_PATH&gt;"</code>. The secret must be at least 40 characters. Then enable the bot per-conversation using the Nextcloud Talk action node (Bot → Enable for Conversation). Use <code>--feature webhook</code> so Nextcloud sends events to n8n, and <code>--feature response</code> if you also want to send messages back as the bot.',
 				name: 'setupNotice',
 				type: 'notice',
 				default: '',
@@ -92,7 +71,7 @@ export class NextcloudTalkWebhookTrigger implements INodeType {
 						name: 'All Conversations',
 						value: 'all',
 						description:
-							'Trigger for messages in any conversation the bot is enabled in. The bot is automatically enabled for all current conversations on activation.',
+							'Trigger for messages in any conversation the bot is enabled in. Enable the bot per-conversation using the Nextcloud Talk action node (Bot → Enable for Conversation).',
 					},
 					{
 						name: 'Specific Conversation(s)',
@@ -130,15 +109,6 @@ export class NextcloudTalkWebhookTrigger implements INodeType {
 				],
 			},
 			{
-				displayName: 'Bot ID',
-				name: 'botId',
-				type: 'number',
-				required: true,
-				default: 0,
-				description:
-					'The numeric ID of the bot as assigned by Nextcloud. Shown in the output of <code>occ talk:bot:install</code> or <code>occ talk:bot:list</code>.',
-			},
-			{
 				displayName: 'Bot Secret',
 				name: 'botSecret',
 				type: 'string',
@@ -156,21 +126,6 @@ export class NextcloudTalkWebhookTrigger implements INodeType {
 				default: {},
 				options: [
 					{
-						displayName: 'Actor Types',
-						name: 'actorTypes',
-						type: 'multiOptions',
-						options: [
-							{ name: 'Bots', value: 'bots', description: 'Bots, commands, and the changelog conversation' },
-							{ name: 'Bridged', value: 'bridged', description: 'Users bridged in by the Matterbridge integration' },
-							{ name: 'Deleted Users', value: 'deleted_users', description: 'Former logged-in users that got deleted' },
-							{ name: 'Federated Users', value: 'federated_users' },
-							{ name: 'Guests', value: 'guests', description: 'Guest users (attendee type guests and emails)' },
-							{ name: 'Users', value: 'users' },
-						],
-						default: ['users', 'guests'],
-						description: 'Only trigger for messages from these actor types. Leave as default to exclude bots and avoid loops.',
-					},
-					{
 						displayName: 'Ignore System Messages',
 						name: 'ignoreSystemMessages',
 						type: 'boolean',
@@ -180,89 +135,6 @@ export class NextcloudTalkWebhookTrigger implements INodeType {
 				],
 			},
 		],
-	};
-
-	// ── webhook lifecycle ─────────────────────────────────────────────────────
-
-	webhookMethods = {
-		default: {
-			async checkExists(this: IHookFunctions): Promise<boolean> {
-				const conversationMode = this.getNodeParameter('conversationMode') as string;
-				// Always re-run create() in 'all' mode so new conversations are picked up.
-				if (conversationMode === 'all') return false;
-
-				const botId = this.getNodeParameter('botId') as number;
-				const tokens = getSpecificTokens(this);
-
-				for (const token of tokens) {
-					const response = await nextcloudApiRequest.call(
-						this, 'GET', CHAT_API_PATH, `/bot/${token}`, {}, {},
-					);
-					const bots = extractOcsData(response) as NextcloudTalkBotEntry[];
-					if (!Array.isArray(bots) || !bots.some((b) => b.id === botId && b.state === 1)) {
-						return false;
-					}
-				}
-				return true;
-			},
-
-			async create(this: IHookFunctions): Promise<boolean> {
-				const conversationMode = this.getNodeParameter('conversationMode') as string;
-				const botId = this.getNodeParameter('botId') as number;
-				const tokens =
-					conversationMode === 'all'
-						? await getAllRoomTokens(this)
-						: getSpecificTokens(this);
-
-				const nodeData = initNodeData(
-					this.getWorkflowStaticData('node') as Record<string, unknown>,
-				);
-
-				for (const token of tokens) {
-					try {
-						await nextcloudApiRequest.call(
-							this, 'POST', CHAT_API_PATH, `/bot/${token}/${botId}`, {},
-						);
-						if (!nodeData.enabledTokens.includes(token)) {
-							nodeData.enabledTokens.push(token);
-						}
-					} catch {
-						// Not a moderator in this conversation — skip silently.
-					}
-				}
-				return true;
-			},
-
-			async delete(this: IHookFunctions): Promise<boolean> {
-				const conversationMode = this.getNodeParameter('conversationMode') as string;
-				const botId = this.getNodeParameter('botId') as number;
-				const tokens =
-					conversationMode === 'all'
-						? await getAllRoomTokens(this)
-						: getSpecificTokens(this);
-
-				for (const token of tokens) {
-					try {
-						await nextcloudApiRequest.call(
-							this, 'DELETE', CHAT_API_PATH, `/bot/${token}/${botId}`, {},
-						);
-					} catch {
-						// Already gone or not enabled — ignore.
-					}
-				}
-
-				const nodeData = initNodeData(
-					this.getWorkflowStaticData('node') as Record<string, unknown>,
-				);
-				nodeData.enabledTokens = [];
-
-				// Clear the shared cursor so the poll node starts fresh on next activation.
-				const globalData = this.getWorkflowStaticData('global');
-				delete globalData[NEXTCLOUD_TALK_CURSORS_KEY];
-
-				return true;
-			},
-		},
 	};
 
 	// ── incoming webhook ──────────────────────────────────────────────────────
@@ -300,7 +172,7 @@ export class NextcloudTalkWebhookTrigger implements INodeType {
 		const conversationMode = this.getNodeParameter('conversationMode') as string;
 
 		if (conversationMode === 'specific') {
-			const allowed = getSpecificTokens(this as unknown as IPollFunctions);
+			const allowed = getSpecificTokens(this);
 			const incomingToken = (bodyData.target as IDataObject | undefined)?.id as string | undefined;
 			if (!allowed.includes(incomingToken ?? '')) {
 				return { workflowData: [[]] };
@@ -309,7 +181,6 @@ export class NextcloudTalkWebhookTrigger implements INodeType {
 
 		const options = this.getNodeParameter('options') as {
 			ignoreSystemMessages?: boolean;
-			actorTypes?: string[];
 		};
 
 		if (options.ignoreSystemMessages !== false) {
@@ -326,13 +197,6 @@ export class NextcloudTalkWebhookTrigger implements INodeType {
 		const actorType = slashIdx >= 0 ? actorIdRaw!.slice(0, slashIdx) : undefined;
 		const actorId = slashIdx >= 0 ? actorIdRaw!.slice(slashIdx + 1) : actorIdRaw;
 		const actorDisplayName = (bodyData.actor as IDataObject | undefined)?.name as string | undefined;
-
-		const allowedActorTypes = options.actorTypes;
-		if (allowedActorTypes && allowedActorTypes.length > 0) {
-			if (!allowedActorTypes.includes(actorType ?? '')) {
-				return { workflowData: [[]] };
-			}
-		}
 
 		// Parse message text and parameters from the ActivityPub object.content JSON string.
 		// Content format: {"message":"...", "parameters": {"mention-user1": {...}} }

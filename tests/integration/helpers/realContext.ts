@@ -9,8 +9,10 @@ import axios from 'axios';
 import type {
 	IExecuteFunctions,
 	IPollFunctions,
+	IWebhookFunctions,
 	IHttpRequestOptions,
 	IDataObject,
+	INodeExecutionData,
 } from 'n8n-workflow';
 
 function getCredentials() {
@@ -92,4 +94,66 @@ export function createRealPollContext(
 				realHttpRequest(opts),
 		},
 	} as unknown as IPollFunctions;
+}
+
+/**
+ * Captured response from a mock webhook context. The webhook node calls
+ * `getResponseObject().status(code).json(body)` for error replies; the
+ * captured values let tests assert on the rejection path.
+ */
+export interface CapturedWebhookResponse {
+	status?: number;
+	body?: unknown;
+}
+
+/**
+ * Pure in-process mock of IWebhookFunctions. Used to drive `webhook()` from
+ * tests with fully-controlled headers, body, and rawBody. No HTTP server,
+ * no Nextcloud round-trip — these tests exist to exercise the trigger's own
+ * signature/filter/normalization logic.
+ */
+export function createMockWebhookContext(args: {
+	params: Record<string, unknown>;
+	headers: Record<string, string>;
+	body: IDataObject;
+	rawBody?: string;
+	globalData?: Record<string, unknown>;
+}): { ctx: IWebhookFunctions; response: CapturedWebhookResponse } {
+	const response: CapturedWebhookResponse = {};
+	const globalData = args.globalData ?? {};
+	const nodeData: Record<string, unknown> = {};
+
+	const responseObject = {
+		status(code: number) {
+			response.status = code;
+			return {
+				json(payload: unknown) {
+					response.body = payload;
+				},
+			};
+		},
+	};
+
+	const requestObject = {
+		rawBody: Buffer.from(args.rawBody ?? JSON.stringify(args.body), 'utf8'),
+	};
+
+	const ctx = {
+		getNodeParameter: (name: string) => args.params[name],
+		getHeaderData: () => args.headers,
+		getRequestObject: () => requestObject,
+		getResponseObject: () => responseObject,
+		getBodyData: () => args.body,
+		getWorkflowStaticData: (scope: string) => (scope === 'global' ? globalData : nodeData),
+		getMode: () => 'trigger',
+		getNode: () => ({ name: 'NextcloudTalkWebhookTrigger', type: 'nextcloudTalkWebhookTrigger' } as ReturnType<IWebhookFunctions['getNode']>),
+		helpers: {
+			returnJsonArray: (items: IDataObject | IDataObject[]): INodeExecutionData[] => {
+				const arr = Array.isArray(items) ? items : [items];
+				return arr.map((json) => ({ json }));
+			},
+		},
+	} as unknown as IWebhookFunctions;
+
+	return { ctx, response };
 }

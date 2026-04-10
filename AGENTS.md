@@ -5,14 +5,16 @@ n8n community node for Nextcloud Talk. Package name: `n8n-nodes-nextcloud-talk`.
 ## Nodes
 
 **NextcloudTalk** (`nodes/NextcloudTalk/NextcloudTalk.node.ts`) — programmatic-style node:
+- **Bot**: enable for conversation, disable for conversation, list for conversation
 - **Conversation**: list, get, create, delete, rename, set description, toggle guest access, toggle favorite, set notification level, set read-only state
 - **Message**: get many, send, reply, edit, delete, react, mark as read
 - **Participant**: list, add, remove, promote to moderator, demote from moderator
 - **Poll**: create, get, vote, close
 - **Reaction**: add, remove, get (with optional emoji filter)
 
-**NextcloudTalkTrigger** (`nodes/NextcloudTalk/NextcloudTalkTrigger.node.ts`) — poll-based trigger:
-- **On Message**: polls a conversation for new messages and emits them as workflow items
+**NextcloudTalkPollTrigger** (`nodes/NextcloudTalk/NextcloudTalkPollTrigger.node.ts`) — poll-based trigger. Schedule is configured via n8n's built-in "Poll Times" panel.
+
+**NextcloudTalkWebhookTrigger** (`nodes/NextcloudTalk/NextcloudTalkWebhookTrigger.node.ts`) — webhook-based trigger. Requires the bot to be registered via `occ talk:bot:install` and enabled per-conversation via the `Bot` resource on the action node.
 
 ## Credentials
 
@@ -24,14 +26,13 @@ Integration tests live in `tests/integration/`. Each resource has its own test f
 
 Run with:
 ```bash
-npm run test:integration
+npm test
 ```
 
 ## Key guidelines
 - Use the `n8n-node` CLI for building, linting, and dev mode
 - Always fix lint/typecheck errors
 - Use proper types throughout
-- Update `CHANGELOG.md` when bumping the package version
 - Read `.agents/workflow.md` before starting any non-trivial task
 
 ## Context-specific docs
