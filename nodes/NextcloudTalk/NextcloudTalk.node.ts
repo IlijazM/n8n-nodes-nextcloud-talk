@@ -231,7 +231,25 @@ export class NextcloudTalk implements INodeType {
 				} else if (resource === 'message') {
 					const token = this.getNodeParameter('token', i) as string;
 
-					if (operation === 'getMany') {
+					if (operation === 'get') {
+						const messageId = this.getNodeParameter('messageId', i) as number;
+						const response = await nextcloudApiRequest.call(
+							this,
+							'GET',
+							CHAT_API_PATH,
+							`/chat/${token}/${messageId}/context`,
+							{},
+							{ limit: 1 },
+						);
+						const messages = extractOcsData(response) as IDataObject[];
+						const target = Array.isArray(messages)
+							? messages.find((m) => m.id === messageId)
+							: messages;
+						returnData.push({
+							json: (target ?? messages) as IDataObject,
+							pairedItem: { item: i },
+						});
+					} else if (operation === 'getMany') {
 						const returnAll = this.getNodeParameter('returnAll', i) as boolean;
 						const additionalOptions = this.getNodeParameter('additionalOptions', i) as {
 							lastKnownMessageId?: number;

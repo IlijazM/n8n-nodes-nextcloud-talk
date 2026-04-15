@@ -48,6 +48,34 @@ describe('Message resource', () => {
 		expect(messages).toContain('hello from integration test');
 	});
 
+	it('get returns a single message by ID', async () => {
+		// First send a message to fetch
+		const sendCtx = createRealExecutionContext({
+			resource: 'message',
+			operation: 'send',
+			token,
+			message: 'message to get by id',
+			replyTo: 0,
+			sender: 'user',
+		});
+		const sendResult = await node.execute.call(sendCtx);
+		const messageId = sendResult[0][0].json.id as number;
+
+		const getCtx = createRealExecutionContext({
+			resource: 'message',
+			operation: 'get',
+			token,
+			messageId,
+		});
+		const getResult = await node.execute.call(getCtx);
+
+		expect(getResult[0]).toHaveLength(1);
+		expect(getResult[0][0].json).toMatchObject({
+			id: messageId,
+			message: 'message to get by id',
+		});
+	});
+
 	it('send with replyTo sends a reply and references the parent message', async () => {
 		// First send a message to reply to
 		const sendCtx = createRealExecutionContext({

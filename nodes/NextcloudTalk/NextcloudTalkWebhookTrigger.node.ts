@@ -273,13 +273,7 @@ export class NextcloudTalkWebhookTrigger implements INodeType {
 		const random = headers['x-nextcloud-talk-random'] as string | undefined;
 		const signature = headers['x-nextcloud-talk-signature'] as string | undefined;
 
-		console.log('[WebhookTrigger] incoming request');
-		console.log('[WebhookTrigger] all headers=%j', headers);
-		console.log('[WebhookTrigger] random header present=%s', !!random);
-		console.log('[WebhookTrigger] signature header present=%s', !!signature);
-
 		if (!random || !signature) {
-			console.log('[WebhookTrigger] rejected: missing signature headers');
 			this.getResponseObject().status(401).json({ message: 'Missing signature headers' });
 			return { noWebhookResponse: true };
 		}
@@ -289,27 +283,18 @@ export class NextcloudTalkWebhookTrigger implements INodeType {
 			(req as unknown as { rawBody?: Buffer }).rawBody?.toString('utf8') ??
 			JSON.stringify(this.getBodyData());
 
-		console.log('[WebhookTrigger] rawBody=%s', rawBody);
-
 		const expected = crypto
 			.createHmac('sha256', botSecret)
 			.update(random + rawBody)
 			.digest('hex');
 
-		console.log('[WebhookTrigger] signature received=%s', signature);
-		console.log('[WebhookTrigger] signature expected=%s', expected);
-		console.log('[WebhookTrigger] botSecret length=%d first4=%s', botSecret.length, botSecret.slice(0, 4));
-
 		if (
 			signature.length !== expected.length ||
 			!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
 		) {
-			console.log('[WebhookTrigger] rejected: invalid signature');
 			this.getResponseObject().status(403).json({ message: 'Invalid signature' });
 			return { noWebhookResponse: true };
 		}
-
-		console.log('[WebhookTrigger] signature OK');
 
 		const bodyData = this.getBodyData() as IDataObject;
 		const conversationMode = this.getNodeParameter('conversationMode') as string;
@@ -317,9 +302,7 @@ export class NextcloudTalkWebhookTrigger implements INodeType {
 		if (conversationMode === 'specific') {
 			const allowed = getSpecificTokens(this as unknown as IPollFunctions);
 			const incomingToken = (bodyData.target as IDataObject | undefined)?.id as string | undefined;
-			console.log('[WebhookTrigger] specific mode: incomingToken=%s allowed=%j', incomingToken, allowed);
 			if (!allowed.includes(incomingToken ?? '')) {
-				console.log('[WebhookTrigger] filtered: token not in allowed list');
 				return { workflowData: [[]] };
 			}
 		}
@@ -331,9 +314,7 @@ export class NextcloudTalkWebhookTrigger implements INodeType {
 
 		if (options.ignoreSystemMessages !== false) {
 			const objectType = (bodyData.object as IDataObject | undefined)?.type as string | undefined;
-			console.log('[WebhookTrigger] objectType=%s ignoreSystemMessages=true', objectType);
 			if (objectType === 'system') {
-				console.log('[WebhookTrigger] filtered: system message');
 				return { workflowData: [[]] };
 			}
 		}
@@ -347,10 +328,8 @@ export class NextcloudTalkWebhookTrigger implements INodeType {
 		const actorDisplayName = (bodyData.actor as IDataObject | undefined)?.name as string | undefined;
 
 		const allowedActorTypes = options.actorTypes;
-		console.log('[WebhookTrigger] actorId=%s actorType=%s allowedActorTypes=%j', actorId, actorType, allowedActorTypes);
 		if (allowedActorTypes && allowedActorTypes.length > 0) {
 			if (!allowedActorTypes.includes(actorType ?? '')) {
-				console.log('[WebhookTrigger] filtered: actorType not in allowed list');
 				return { workflowData: [[]] };
 			}
 		}
@@ -387,8 +366,6 @@ export class NextcloudTalkWebhookTrigger implements INodeType {
 				globalData[NEXTCLOUD_TALK_CURSORS_KEY] = cursors;
 			}
 		}
-
-		console.log('[WebhookTrigger] firing workflow with msgId=%d token=%s actorType=%s', msgId, token, actorType);
 
 		// Normalize to a flat shape matching the poll trigger output so both triggers are
 		// interchangeable in a workflow (same field names for token, message, id, actorType, etc.).

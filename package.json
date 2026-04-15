@@ -1,6 +1,6 @@
 {
     "name": "n8n-nodes-nextcloud-talk",
-    "version": "1.0.15",
+    "version": "1.0.16",
     "description": "n8n community node for Nextcloud Talk.",
     "license": "MIT",
     "homepage": "",

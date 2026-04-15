@@ -23,6 +23,12 @@ export const messageOperations: INodeProperties[] = [
 				action: 'Edit a message',
 			},
 			{
+				name: 'Get',
+				value: 'get',
+				description: 'Get a single message by ID',
+				action: 'Get a message',
+			},
+			{
 				name: 'Get Many',
 				value: 'getMany',
 				description: 'Get messages from a conversation',
@@ -64,6 +70,18 @@ export const messageFields: INodeProperties[] = [
 			'The token (ID) of the conversation. You can find it in the URL when opening the conversation in Nextcloud Talk.',
 		displayOptions: {
 			show: { resource: ['message'] },
+		},
+	},
+	// ─── Get ──────────────────────────────────────────────────────
+	{
+		displayName: 'Message ID',
+		name: 'messageId',
+		type: 'number',
+		required: true,
+		default: 0,
+		description: 'The ID of the message to retrieve',
+		displayOptions: {
+			show: { resource: ['message'], operation: ['get'] },
 		},
 	},
 	// ─── Get Many ─────────────────────────────────────────────────
