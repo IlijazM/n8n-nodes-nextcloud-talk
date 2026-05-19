@@ -8,7 +8,7 @@ import {
 	type INodeTypeDescription,
 } from 'n8n-workflow';
 
-import { nextcloudApiRequest, nextcloudBotRequest, extractOcsData, CHAT_API_PATH, ROOM_API_PATH } from './helpers';
+import { nextcloudApiRequest, extractOcsData, CHAT_API_PATH, ROOM_API_PATH } from './helpers';
 import { messageOperations, messageFields } from './descriptions/message.description';
 import {
 	conversationOperations,
@@ -143,11 +143,10 @@ export class NextcloudTalk implements INodeType {
 						}
 					} else if (operation === 'get') {
 						const token = this.getNodeParameter('token', i) as string;
-						const includeParticipants = this.getNodeParameter(
-							'includeParticipants',
-							i,
-							false,
-						) as boolean;
+						const additionalOptions = this.getNodeParameter('additionalOptions', i, {}) as {
+							includeParticipants?: boolean;
+						};
+						const includeParticipants = additionalOptions.includeParticipants === true;
 
 						const response = await nextcloudApiRequest.call(
 							this,
@@ -344,22 +343,22 @@ export class NextcloudTalk implements INodeType {
 					} else if (operation === 'send') {
 						const message = this.getNodeParameter('message', i) as string;
 						const replyTo = this.getNodeParameter('replyTo', i, 0) as number;
-						const threadTitle = (this.getNodeParameter('threadTitle', i, '') as string).trim();
-						const sender = this.getNodeParameter('sender', i, 'user') as string;
+						const additionalOptions = this.getNodeParameter('additionalOptions', i, {}) as {
+							threadTitle?: string;
+						};
+						const threadTitle = (additionalOptions.threadTitle ?? '').trim();
 
 						const body: IDataObject = { message };
 						if (replyTo > 0) body.replyTo = replyTo;
 						if (threadTitle) body.threadTitle = threadTitle;
 
-						let response: unknown;
-						if (sender === 'bot') {
-							const botSecret = (this.getNodeParameter('botSecret', i) as string).trim();
-							const credentials = await this.getCredentials('nextcloudApi');
-							const serverUrl = (credentials.serverUrl as string).replace(/\/$/, '');
-							response = await nextcloudBotRequest.call(this, serverUrl, token, botSecret, body);
-						} else {
-							response = await nextcloudApiRequest.call(this, 'POST', CHAT_API_PATH, `/chat/${token}`, body);
-						}
+						const response = await nextcloudApiRequest.call(
+							this,
+							'POST',
+							CHAT_API_PATH,
+							`/chat/${token}`,
+							body,
+						);
 						returnData.push({
 							json: extractOcsData(response) as IDataObject,
 							pairedItem: { item: i },

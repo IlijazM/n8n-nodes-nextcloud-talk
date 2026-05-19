@@ -156,51 +156,24 @@ export const messageFields: INodeProperties[] = [
 		},
 	},
 	{
-		displayName: 'Thread Title',
-		name: 'threadTitle',
-		type: 'string',
-		default: '',
-		description:
-			'When set, the sent message starts a new thread with this title. Leave empty to send a normal message. Ignored if Reply To Message ID is set. Requires Nextcloud Talk v22+ (capability "threads").',
+		displayName: 'Additional Options',
+		name: 'additionalOptions',
+		type: 'collection',
+		placeholder: 'Add Option',
+		default: {},
 		displayOptions: {
 			show: { resource: ['message'], operation: ['send'] },
 		},
-	},
-	{
-		displayName: 'Send As',
-		name: 'sender',
-		type: 'options',
-		noDataExpression: true,
-		default: 'user',
 		options: [
 			{
-				name: 'User',
-				value: 'user',
-				description: 'Send as the authenticated Nextcloud account',
-			},
-			{
-				name: 'Bot',
-				value: 'bot',
+				displayName: 'Thread Title',
+				name: 'threadTitle',
+				type: 'string',
+				default: '',
 				description:
-					'Send as the OCC-registered bot (actorType: bots). Use this to prevent the trigger from reacting to messages sent by this workflow. Requires the bot to be registered with <code>--feature response</code>.',
+					'When set, the sent message starts a new thread with this title. Ignored if Reply To Message ID is set. Requires Nextcloud Talk v22+ (capability "threads").',
 			},
 		],
-		displayOptions: {
-			show: { resource: ['message'], operation: ['send'] },
-		},
-	},
-	{
-		displayName: 'Bot Secret',
-		name: 'botSecret',
-		type: 'string',
-		typeOptions: { password: true },
-		required: true,
-		default: '',
-		description:
-			'The secret used when registering the bot with <code>occ talk:bot:install</code>. Requires <code>--feature response</code>.',
-		displayOptions: {
-			show: { resource: ['message'], operation: ['send'], sender: ['bot'] },
-		},
 	},
 	// ─── React ────────────────────────────────────────────────────
 	{

@@ -22,7 +22,6 @@ describe('Message resource', () => {
 			token,
 			message: 'hello from integration test',
 			replyTo: 0,
-			sender: 'user',
 		});
 		const result = await node.execute.call(ctx);
 
@@ -56,7 +55,6 @@ describe('Message resource', () => {
 			token,
 			message: 'message to get by id',
 			replyTo: 0,
-			sender: 'user',
 		});
 		const sendResult = await node.execute.call(sendCtx);
 		const messageId = sendResult[0][0].json.id as number;
@@ -84,7 +82,6 @@ describe('Message resource', () => {
 			token,
 			message: 'parent message',
 			replyTo: 0,
-			sender: 'user',
 		});
 		const sendResult = await node.execute.call(sendCtx);
 		const parentId = sendResult[0][0].json.id as number;
@@ -96,7 +93,6 @@ describe('Message resource', () => {
 			token,
 			message: 'this is a reply',
 			replyTo: parentId,
-			sender: 'user',
 		});
 		const replyResult = await node.execute.call(replyCtx);
 
@@ -112,8 +108,7 @@ describe('Message resource', () => {
 			token,
 			message: 'thread root message',
 			replyTo: 0,
-			threadTitle: 'My new thread',
-			sender: 'user',
+			additionalOptions: { threadTitle: 'My new thread' },
 		});
 		const result = await node.execute.call(ctx);
 
@@ -132,7 +127,6 @@ describe('Message resource', () => {
 			token,
 			message: 'original content',
 			replyTo: 0,
-			sender: 'user',
 		});
 		const sendResult = await node.execute.call(sendCtx);
 		const messageId = sendResult[0][0].json.id as number;
@@ -172,7 +166,6 @@ describe('Message resource', () => {
 			token,
 			message: 'message to react to',
 			replyTo: 0,
-			sender: 'user',
 		});
 		const sendResult = await node.execute.call(sendCtx);
 		const messageId = sendResult[0][0].json.id as number;
@@ -195,7 +188,6 @@ describe('Message resource', () => {
 			token,
 			message: 'message to be deleted',
 			replyTo: 0,
-			sender: 'user',
 		});
 		const sendResult = await node.execute.call(sendCtx);
 		const messageId = sendResult[0][0].json.id as number;
@@ -215,7 +207,7 @@ describe('Message resource', () => {
 		for (let n = 0; n < 3; n++) {
 			await node.execute.call(createRealExecutionContext({
 				resource: 'message', operation: 'send', token,
-				message: `limit test ${n}`, replyTo: 0, sender: 'user',
+				message: `limit test ${n}`, replyTo: 0,
 			}));
 		}
 
@@ -238,7 +230,7 @@ describe('Message resource', () => {
 		for (let n = 0; n < 3; n++) {
 			const r = await node.execute.call(createRealExecutionContext({
 				resource: 'message', operation: 'send', token,
-				message: `pagination test ${n}`, replyTo: 0, sender: 'user',
+				message: `pagination test ${n}`, replyTo: 0,
 			}));
 			ids.push(r[0][0].json.id as number);
 		}
@@ -261,7 +253,7 @@ describe('Message resource', () => {
 	it('getMany with threadId filters messages by thread', async () => {
 		const sendCtx = createRealExecutionContext({
 			resource: 'message', operation: 'send', token,
-			message: 'thread root', replyTo: 0, sender: 'user',
+			message: 'thread root', replyTo: 0,
 		});
 		const sendResult = await node.execute.call(sendCtx);
 		const threadId = sendResult[0][0].json.id as number;

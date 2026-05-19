@@ -104,15 +104,24 @@ export const conversationFields: INodeProperties[] = [
 	},
 	// ─── Get ──────────────────────────────────────────────────────
 	{
-		displayName: 'Include Participants',
-		name: 'includeParticipants',
-		type: 'boolean',
-		default: false,
-		description:
-			'Whether to also fetch the conversation\'s participants and embed them under "participants" in the output. Makes a second API call.',
+		displayName: 'Additional Options',
+		name: 'additionalOptions',
+		type: 'collection',
+		placeholder: 'Add Option',
+		default: {},
 		displayOptions: {
 			show: { resource: ['conversation'], operation: ['get'] },
 		},
+		options: [
+			{
+				displayName: 'Include Participants',
+				name: 'includeParticipants',
+				type: 'boolean',
+				default: false,
+				description:
+					'Whether to also fetch the conversation\'s participants and embed them under "participants" in the output. Makes a second API call.',
+			},
+		],
 	},
 	// ─── Create ───────────────────────────────────────────────────
 	{

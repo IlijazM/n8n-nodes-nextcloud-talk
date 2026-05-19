@@ -41,7 +41,7 @@ describe('Conversation resource', () => {
 			resource: 'conversation',
 			operation: 'get',
 			token: testToken,
-			includeParticipants: true,
+			additionalOptions: { includeParticipants: true },
 		});
 		const result = await node.execute.call(ctx);
 
