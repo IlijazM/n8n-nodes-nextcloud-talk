@@ -238,6 +238,29 @@ describe('Message resource', () => {
 		expect(resultIds).toContain(ids[0]);
 	});
 
+	it('getMany with threadId filters messages by thread', async () => {
+		const sendCtx = createRealExecutionContext({
+			resource: 'message', operation: 'send', token,
+			message: 'thread root', replyTo: 0, sender: 'user',
+		});
+		const sendResult = await node.execute.call(sendCtx);
+		const threadId = sendResult[0][0].json.id as number;
+
+		const ctx = createRealExecutionContext({
+			resource: 'message',
+			operation: 'getMany',
+			token,
+			returnAll: true,
+			additionalOptions: { threadId },
+		});
+		const result = await node.execute.call(ctx);
+
+		expect(result[0].length).toBeGreaterThan(0);
+		for (const item of result[0]) {
+			expect(item.json.threadId).toBe(threadId);
+		}
+	});
+
 	it('markRead marks messages as read without error', async () => {
 		const ctx = createRealExecutionContext({
 			resource: 'message',

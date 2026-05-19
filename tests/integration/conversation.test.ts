@@ -36,6 +36,22 @@ describe('Conversation resource', () => {
 		expect(result[0][0].json.token).toBe(testToken);
 	});
 
+	it('get with includeParticipants embeds the participants array', async () => {
+		const ctx = createRealExecutionContext({
+			resource: 'conversation',
+			operation: 'get',
+			token: testToken,
+			includeParticipants: true,
+		});
+		const result = await node.execute.call(ctx);
+
+		expect(result[0]).toHaveLength(1);
+		const conversation = result[0][0].json as { token: string; participants?: unknown[] };
+		expect(conversation.token).toBe(testToken);
+		expect(Array.isArray(conversation.participants)).toBe(true);
+		expect(conversation.participants!.length).toBeGreaterThan(0);
+	});
+
 	it('create creates a new public conversation and returns it', async () => {
 		const ctx = createRealExecutionContext({
 			resource: 'conversation',

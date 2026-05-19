@@ -102,6 +102,18 @@ export const conversationFields: INodeProperties[] = [
 			},
 		},
 	},
+	// ─── Get ──────────────────────────────────────────────────────
+	{
+		displayName: 'Include Participants',
+		name: 'includeParticipants',
+		type: 'boolean',
+		default: false,
+		description:
+			'Whether to also fetch the conversation\'s participants and embed them under "participants" in the output. Makes a second API call.',
+		displayOptions: {
+			show: { resource: ['conversation'], operation: ['get'] },
+		},
+	},
 	// ─── Create ───────────────────────────────────────────────────
 	{
 		displayName: 'Room Type',

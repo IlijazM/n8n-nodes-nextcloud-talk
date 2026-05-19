@@ -123,6 +123,14 @@ export const messageFields: INodeProperties[] = [
 				default: 0,
 				description: 'Return messages older than this message ID. Use for pagination.',
 			},
+			{
+				displayName: 'Thread ID',
+				name: 'threadId',
+				type: 'number',
+				default: 0,
+				description:
+					'Only return messages belonging to this thread. The thread ID is the message ID of the thread root. Requires Nextcloud Talk v22+ (capability "threads").',
+			},
 		],
 	},
 	// ─── Send ─────────────────────────────────────────────────────

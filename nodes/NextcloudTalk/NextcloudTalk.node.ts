@@ -143,16 +143,31 @@ export class NextcloudTalk implements INodeType {
 						}
 					} else if (operation === 'get') {
 						const token = this.getNodeParameter('token', i) as string;
+						const includeParticipants = this.getNodeParameter(
+							'includeParticipants',
+							i,
+							false,
+						) as boolean;
+
 						const response = await nextcloudApiRequest.call(
 							this,
 							'GET',
 							ROOM_API_PATH,
 							`/room/${token}`,
 						);
-						returnData.push({
-							json: extractOcsData(response) as IDataObject,
-							pairedItem: { item: i },
-						});
+						const conversation = extractOcsData(response) as IDataObject;
+
+						if (includeParticipants) {
+							const participantsResponse = await nextcloudApiRequest.call(
+								this,
+								'GET',
+								ROOM_API_PATH,
+								`/room/${token}/participants`,
+							);
+							conversation.participants = extractOcsData(participantsResponse) as IDataObject[];
+						}
+
+						returnData.push({ json: conversation, pairedItem: { item: i } });
 					} else if (operation === 'create') {
 						const roomType = this.getNodeParameter('roomType', i) as number;
 						const body: IDataObject = { roomType };
@@ -302,12 +317,16 @@ export class NextcloudTalk implements INodeType {
 						const returnAll = this.getNodeParameter('returnAll', i) as boolean;
 						const additionalOptions = this.getNodeParameter('additionalOptions', i) as {
 							lastKnownMessageId?: number;
+							threadId?: number;
 						};
 
 						const qs: IDataObject = { lookIntoFuture: 0 };
 						qs.limit = returnAll ? 200 : (this.getNodeParameter('limit', i) as number);
 						if (additionalOptions.lastKnownMessageId) {
 							qs.lastKnownMessageId = additionalOptions.lastKnownMessageId;
+						}
+						if (additionalOptions.threadId) {
+							qs.threadId = additionalOptions.threadId;
 						}
 
 						const response = await nextcloudApiRequest.call(
