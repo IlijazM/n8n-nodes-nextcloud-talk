@@ -105,6 +105,26 @@ describe('Message resource', () => {
 		expect(replyResult[0][0].json).toHaveProperty('parent');
 	});
 
+	it('send with threadTitle creates a new thread', async () => {
+		const ctx = createRealExecutionContext({
+			resource: 'message',
+			operation: 'send',
+			token,
+			message: 'thread root message',
+			replyTo: 0,
+			threadTitle: 'My new thread',
+			sender: 'user',
+		});
+		const result = await node.execute.call(ctx);
+
+		expect(result[0]).toHaveLength(1);
+		expect(result[0][0].json).toMatchObject({
+			message: 'thread root message',
+			isThread: true,
+			threadTitle: 'My new thread',
+		});
+	});
+
 	it('edit updates a message and getMany reflects the new content', async () => {
 		const sendCtx = createRealExecutionContext({
 			resource: 'message',

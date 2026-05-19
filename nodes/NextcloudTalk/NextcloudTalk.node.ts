@@ -344,10 +344,12 @@ export class NextcloudTalk implements INodeType {
 					} else if (operation === 'send') {
 						const message = this.getNodeParameter('message', i) as string;
 						const replyTo = this.getNodeParameter('replyTo', i, 0) as number;
+						const threadTitle = (this.getNodeParameter('threadTitle', i, '') as string).trim();
 						const sender = this.getNodeParameter('sender', i, 'user') as string;
 
 						const body: IDataObject = { message };
 						if (replyTo > 0) body.replyTo = replyTo;
+						if (threadTitle) body.threadTitle = threadTitle;
 
 						let response: unknown;
 						if (sender === 'bot') {

@@ -156,6 +156,17 @@ export const messageFields: INodeProperties[] = [
 		},
 	},
 	{
+		displayName: 'Thread Title',
+		name: 'threadTitle',
+		type: 'string',
+		default: '',
+		description:
+			'When set, the sent message starts a new thread with this title. Leave empty to send a normal message. Ignored if Reply To Message ID is set. Requires Nextcloud Talk v22+ (capability "threads").',
+		displayOptions: {
+			show: { resource: ['message'], operation: ['send'] },
+		},
+	},
+	{
 		displayName: 'Send As',
 		name: 'sender',
 		type: 'options',
