@@ -107,10 +107,63 @@ export interface CapturedWebhookResponse {
 }
 
 /**
+ * Build a default OCS-shaped chat response derived from the ActivityPub event,
+ * so existing tests keep matching even though the trigger now enriches via the
+ * Chat API. Tests that care about specific enrichment fields (e.g. `parent`,
+ * `referenceId`) should pass an explicit `httpResponse`.
+ */
+function defaultChatResponse(body: IDataObject): unknown {
+	const obj = (body.object ?? {}) as IDataObject;
+	const actor = (body.actor ?? {}) as IDataObject;
+	const target = (body.target ?? {}) as IDataObject;
+	const id = typeof obj.id === 'number' ? obj.id : Number(obj.id);
+	const actorIdRaw = (actor.id as string | undefined) ?? '';
+	const slashIdx = actorIdRaw.indexOf('/');
+	const actorType = slashIdx >= 0 ? actorIdRaw.slice(0, slashIdx) : actorIdRaw;
+	const actorId = slashIdx >= 0 ? actorIdRaw.slice(slashIdx + 1) : actorIdRaw;
+	let parsed: { message?: string; parameters?: unknown } = {};
+	try {
+		parsed = JSON.parse((obj.content as string) ?? '{}');
+	} catch {
+		// keep parsed empty
+	}
+	const isNote = obj.type === 'Note';
+	return {
+		ocs: {
+			meta: { status: 'ok', statuscode: 200 },
+			data: [
+				{
+					id,
+					token: target.id,
+					actorType,
+					actorId,
+					actorDisplayName: actor.name,
+					timestamp: 1700000000,
+					message: parsed.message ?? '',
+					messageParameters: parsed.parameters ?? [],
+					systemMessage: '',
+					messageType: isNote ? 'comment' : 'system',
+					isReplyable: isNote,
+					referenceId: `ref-${id}`,
+					reactions: {},
+					expirationTimestamp: 0,
+					markdown: true,
+					threadId: id,
+				},
+			],
+		},
+	};
+}
+
+/**
  * Pure in-process mock of IWebhookFunctions. Used to drive `webhook()` from
  * tests with fully-controlled headers, body, and rawBody. No HTTP server,
  * no Nextcloud round-trip — these tests exist to exercise the trigger's own
  * signature/filter/normalization logic.
+ *
+ * `httpResponse` controls what the (mocked) Chat API enrichment call returns.
+ * Default: an OCS envelope derived from the ActivityPub body.
+ * Pass a function to inspect the request options or throw to simulate failure.
  */
 export function createMockWebhookContext(args: {
 	params: Record<string, unknown>;
@@ -118,10 +171,12 @@ export function createMockWebhookContext(args: {
 	body: IDataObject;
 	rawBody?: string;
 	globalData?: Record<string, unknown>;
-}): { ctx: IWebhookFunctions; response: CapturedWebhookResponse } {
+	httpResponse?: unknown | ((opts: IHttpRequestOptions) => unknown);
+}): { ctx: IWebhookFunctions; response: CapturedWebhookResponse; httpCalls: IHttpRequestOptions[] } {
 	const response: CapturedWebhookResponse = {};
 	const globalData = args.globalData ?? {};
 	const nodeData: Record<string, unknown> = {};
+	const httpCalls: IHttpRequestOptions[] = [];
 
 	const responseObject = {
 		status(code: number) {
@@ -147,13 +202,27 @@ export function createMockWebhookContext(args: {
 		getWorkflowStaticData: (scope: string) => (scope === 'global' ? globalData : nodeData),
 		getMode: () => 'trigger',
 		getNode: () => ({ name: 'NextcloudTalkWebhookTrigger', type: 'nextcloudTalkWebhookTrigger' } as ReturnType<IWebhookFunctions['getNode']>),
+		getCredentials: async () => ({
+			serverUrl: 'http://mock-nextcloud.local',
+			username: 'mock',
+			appPassword: 'mock',
+		}),
+		logger: { warn: () => {}, info: () => {}, error: () => {}, debug: () => {} },
 		helpers: {
 			returnJsonArray: (items: IDataObject | IDataObject[]): INodeExecutionData[] => {
 				const arr = Array.isArray(items) ? items : [items];
 				return arr.map((json) => ({ json }));
 			},
+			httpRequestWithAuthentication: async (_credName: string, opts: IHttpRequestOptions) => {
+				httpCalls.push(opts);
+				if (typeof args.httpResponse === 'function') {
+					return (args.httpResponse as (o: IHttpRequestOptions) => unknown)(opts);
+				}
+				if (args.httpResponse !== undefined) return args.httpResponse;
+				return defaultChatResponse(args.body);
+			},
 		},
 	} as unknown as IWebhookFunctions;
 
-	return { ctx, response };
+	return { ctx, response, httpCalls };
 }

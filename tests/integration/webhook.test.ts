@@ -100,7 +100,7 @@ describe('NextcloudTalkWebhookTrigger', () => {
 		expect(result).toEqual({ noWebhookResponse: true });
 	});
 
-	it('accepts a valid signature and emits a normalized message', async () => {
+	it('accepts a valid signature and emits the canonical Chat API payload', async () => {
 		const body = makeChatPayload({
 			id: 42,
 			token: 'tok1',
@@ -111,7 +111,7 @@ describe('NextcloudTalkWebhookTrigger', () => {
 		const { headers, rawBody } = makeSignedRequest({ body });
 		const globalData: Record<string, unknown> = {};
 
-		const { ctx } = createMockWebhookContext({
+		const { ctx, httpCalls } = createMockWebhookContext({
 			params: {
 				botSecret: BOT_SECRET,
 				conversationMode: 'all',
@@ -138,12 +138,122 @@ describe('NextcloudTalkWebhookTrigger', () => {
 			message: 'hello world',
 			messageType: 'comment',
 			isReplyable: true,
+			referenceId: 'ref-42',
 			_source: 'webhook',
 		});
+		// Server-side timestamp from the Chat API, not Date.now().
+		expect(json.timestamp).toBe(1700000000);
+
+		// Trigger must have fetched the canonical message via the Chat API.
+		expect(httpCalls).toHaveLength(1);
+		expect(httpCalls[0].url).toContain('/chat/tok1/42/context');
 
 		// Cursor must have been advanced for cross-trigger dedup.
 		const cursors = globalData[NEXTCLOUD_TALK_CURSORS_KEY] as Record<string, number>;
 		expect(cursors.tok1).toBe(42);
+	});
+
+	it('passes parent metadata through when the Chat API returns a reply', async () => {
+		const body = makeChatPayload({
+			id: 540,
+			token: 'tok1',
+			actorIdRaw: 'users/alice',
+			actorName: 'Alice',
+			message: 'a reply',
+		});
+		const { headers, rawBody } = makeSignedRequest({ body });
+
+		const enrichedResponse = {
+			ocs: {
+				meta: { status: 'ok', statuscode: 200 },
+				data: [
+					{
+						id: 540,
+						token: 'tok1',
+						actorType: 'users',
+						actorId: 'alice',
+						actorDisplayName: 'Alice',
+						timestamp: 1779194644,
+						message: 'a reply',
+						messageParameters: [],
+						messageType: 'comment',
+						referenceId: 'ref-540',
+						threadId: 532,
+						parent: {
+							id: 532,
+							token: 'tok1',
+							actorType: 'users',
+							actorId: 'alice',
+							message: 'original',
+							messageType: 'comment',
+							reactions: { '👍': 1 },
+						},
+					},
+				],
+			},
+		};
+
+		const { ctx } = createMockWebhookContext({
+			params: {
+				botSecret: BOT_SECRET,
+				conversationMode: 'all',
+				options: { ignoreSystemMessages: true },
+			},
+			headers,
+			body,
+			rawBody,
+			httpResponse: enrichedResponse,
+		});
+
+		const result = await node.webhook.call(ctx);
+		const item = result.workflowData![0][0].json as Record<string, unknown>;
+		expect(item.parent).toMatchObject({ id: 532, message: 'original' });
+		expect(item.referenceId).toBe('ref-540');
+		expect(item.threadId).toBe(532);
+		expect(item._source).toBe('webhook');
+	});
+
+	it('falls back to the ActivityPub payload when the Chat API call fails', async () => {
+		const body = makeChatPayload({
+			id: 99,
+			token: 'tok1',
+			actorIdRaw: 'users/alice',
+			actorName: 'Alice',
+			message: 'eventually consistent',
+		});
+		const { headers, rawBody } = makeSignedRequest({ body });
+		const globalData: Record<string, unknown> = {};
+
+		const { ctx } = createMockWebhookContext({
+			params: {
+				botSecret: BOT_SECRET,
+				conversationMode: 'all',
+				options: { ignoreSystemMessages: true },
+			},
+			headers,
+			body,
+			rawBody,
+			globalData,
+			httpResponse: () => {
+				throw new Error('simulated 404');
+			},
+		});
+
+		const result = await node.webhook.call(ctx);
+		const item = result.workflowData![0][0].json;
+		expect(item).toMatchObject({
+			id: 99,
+			token: 'tok1',
+			actorType: 'users',
+			actorId: 'alice',
+			message: 'eventually consistent',
+			messageType: 'comment',
+			_source: 'webhook',
+		});
+
+		// Cursor still advances even when enrichment fails.
+		const cursors = globalData[NEXTCLOUD_TALK_CURSORS_KEY] as Record<string, number>;
+		expect(cursors.tok1).toBe(99);
 	});
 
 	it('filters out system messages when ignoreSystemMessages is true', async () => {
